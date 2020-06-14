@@ -35,7 +35,7 @@ Or send a post request to the following address to:
 
 - http://127.0.0.1:5000/transactions/new ：create a new transaction
 
-##Packaged App (Executable Files)
+## Packaged App (Executable Files)
 
 Executable files have been packaged in ```/dist```. Start the nodes and simulate trading simply by execute :
 
@@ -47,10 +47,10 @@ run -p 5002
 simulation_test
 ```
 
-##About the broadcast network
+## About the broadcast network
 
 Run and test the part of broadcast network separately.  
 
-**Step 1 : ** Start 10 nodes (port 5000 - 5009). The code to execute is almost the same as above.
+** Step 1 : ** Start 10 nodes (port 5000 - 5009). The code to execute is almost the same as above.
 
-**Step 2 : ** Construct the broadcast network by executing ```python broadcast_test.py```.
+** Step 2 : ** Construct the broadcast network by executing ```python broadcast_test.py```.
