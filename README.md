@@ -51,6 +51,6 @@ simulation_test
 
 Run and test the part of broadcast network separately.  
 
-** Step 1 : ** Start 10 nodes (port 5000 - 5009). The code to execute is almost the same as above.
+**Step 1 :** Start 10 nodes (port 5000 - 5009). The code to execute is almost the same as above.
 
-** Step 2 : ** Construct the broadcast network by executing ```python broadcast_test.py```.
+**Step 2 :** Construct the broadcast network by executing ```python broadcast_test.py```.
