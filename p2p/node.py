@@ -951,7 +951,7 @@ class NodeManager(object):
             msg_bytes = pickle.dumps(msg_obj)
             self.client.sendblockhash(self.server.socket, (node.ip, node.port), msg_bytes)
             # error test
-            # if self.view == 3:
+            # if self.view == 4:
             #     break
         if self.is_primary:
             self.replyflag = True
