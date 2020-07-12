@@ -199,30 +199,34 @@ class ProcessMessages(SocketServer.BaseRequestHandler):
     def handle_sendblockhash(self, payload):
         print "------handle blockhash: the start of reply------"
         # with self.server.node_manager.lock:
-        self.server.node_manager.commitMessages.append(payload)
+        if payload['view'] == self.server.node_manager.view:
+            self.server.node_manager.commitMessages.append(payload['blockhash'])
         print "+++++commitMessage now:+++++"
         print self.server.node_manager.commitMessages
-        for b in self.server.node_manager.commitMessages:
-            count = 0
-            for b1 in self.server.node_manager.commitMessages:
-                if (b == b1):
-                    count += 1
-            if (count > (2*self.server.node_manager.numSeedNode) / 3):
-                # db.write_to_db(blockchain.wallet.address, new_block)
-                print "-------------------I am correct!!!!!!!!--------------------"
-                if not self.server.node_manager.is_primary:
-                    self.server.node_manager.sendreply(payload)
-                return
+        if not self.server.node_manager.finishflag:
+            for b in self.server.node_manager.commitMessages:
+                count = 0
+                for b1 in self.server.node_manager.commitMessages:
+                    if (b == b1):
+                        count += 1
+                if (count > (2*self.server.node_manager.numSeedNode) / 3):
+                    # db.write_to_db(blockchain.wallet.address, new_block)
+                    print "-------------------I am correct!!!!!!!!--------------------"
+                    self.server.node_manager.finishflag = True
+                    if not self.server.node_manager.is_primary:
+                        self.server.node_manager.sendreply(payload)
+                    return
 
     def handle_sendreply(self, payload):
         print "------handle reply: the start of pre-prepare------"
         # with self.server.node_manager.lock:
-        self.server.node_manager.replyMessage += 1
-        if (self.server.node_manager.replyMessage > (2*self.server.node_manager.numSeedNode) / 3):
-            self.successflag = True
+        if payload['view'] == self.server.node_manager.view:
+            self.server.node_manager.replyMessage += 1
+        if (self.server.node_manager.replyMessage > (2*self.server.node_manager.numSeedNode) / 3) and (not self.server.node_manager.successflag):
+            self.server.node_manager.successflag = True
             self.server.node_manager.replyMessage = 0
             print "next"
-            self.server.node_manager.sendrequest(payload)
+            self.server.node_manager.sendrequest(payload['blockhash'])
         
 
     def handle_sendrequest(self, payload):
@@ -261,6 +265,7 @@ class ProcessMessages(SocketServer.BaseRequestHandler):
                 # print "transaction list clear"
                 # time.sleep(15)
             self.server.node_manager.view += 1
+            self.server.node_manager.finishflag = False
             print "view:", self.server.node_manager.view
             if (self.server.node_manager.is_committee):
                 print "the tx we want to send:"
@@ -269,7 +274,7 @@ class ProcessMessages(SocketServer.BaseRequestHandler):
                 self.server.node_manager.startflag = True
         else:
             self.server.node_manager.view += 1
-            print "pbft failed, start again"
+            print "bft failed, start again"
             print "view:", self.server.node_manager.view
             self.server.node_manager.GST = payload["GST"]
             self.server.node_manager.primary_node_address = payload["address"]
@@ -551,7 +556,8 @@ class NodeManager(object):
         self.replyMessage = 0
         self.GST = 10
         self.replyflag = False
-        # self.finishingflag = True
+        self.finishflag = False #是否收到法定个哈希并sendreply
+        self.successflag = False
         self.receiveblock = True
         self.failhash = []
         # 每个消息都有一个唯一的rpc_id，用于标识节点之间的通信（该rpc_id由发起方生成，并由接收方返回），
@@ -738,7 +744,7 @@ class NodeManager(object):
             # blockchain多个线程共享使用，需要加锁
             
             if self.view == 0 and self.is_primary:
-                time.sleep(60)
+                time.sleep(40)
                 print "-------START--------"
                 self.sendrequest(0)
                 # first = False
@@ -756,7 +762,7 @@ class NodeManager(object):
                 self.startflag = False
 
             if self.replyflag and self.is_primary and (int(time.time())>self.replytime + 30):
-                print "++++++++++PBFT FAILED++++++++++"
+                print "++++++++++BFT FAILED++++++++++"
                 self.sendrequest(-1)
 
             if self.failhash and self.receiveblock:
@@ -857,6 +863,7 @@ class NodeManager(object):
             self.blockchain.send_transactions=deepcopy(self.blockchain.received_transactions)
             # print "transaction list reset"
             self.view += 1
+            self.successflag = False
             print "view:", self.view
             for node in self.committee_member:    
                 msg_obj = packet.Message("sendrequest", {"hash":payload, "address": (self.client.ip,self.client.port), "GST":self.GST} )
@@ -947,7 +954,7 @@ class NodeManager(object):
         """
         print "------send blockhash: the end of commit------"
         for node in self.committee_member:
-            msg_obj = packet.Message("sendblockhash", blockhash)
+            msg_obj = packet.Message("sendblockhash", {'blockhash': blockhash, 'view': self.view})
             msg_bytes = pickle.dumps(msg_obj)
             self.client.sendblockhash(self.server.socket, (node.ip, node.port), msg_bytes)
             # error test
@@ -963,7 +970,7 @@ class NodeManager(object):
 
     def sendreply(self, blockhash):
         print "------send reply: the end of reply------"
-        msg_obj = packet.Message("sendreply", blockhash)
+        msg_obj = packet.Message("sendreply", {'blockhash': blockhash, 'view': self.view})
         msg_bytes = pickle.dumps(msg_obj)
         print "primary_node_address:"
         print self.primary_node_address

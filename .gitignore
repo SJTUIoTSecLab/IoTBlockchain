@@ -1,5 +1,7 @@
 *.pyc
-./idea/
-peer/
+*.spec
+build/
 test.py
-*.pyc
+run1.py
+simulation_test1.py
+p2p/node1.py
