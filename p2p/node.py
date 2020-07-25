@@ -76,6 +76,8 @@ class ProcessMessages(SocketServer.BaseRequestHandler):
             self.handle_sendblock(payload)
         elif command == "sendcorrect":
             self.handle_sendcorrect(payload)
+        elif command == "sendoff":
+            self.handle_sendoff(payload)
         elif command == "version":
             self.handle_version(payload)
         elif command == "verack":
@@ -298,7 +300,8 @@ class ProcessMessages(SocketServer.BaseRequestHandler):
                 self.server.node_manager.startflag = True
         self.server.node_manager.replyflag = False
 
-    
+    def handle_sendoff(self,payload):
+        pass
     
     def handle_sendcorrect(self,payload):
         #找有没有对应的块
@@ -526,6 +529,9 @@ class Node(object):
         ret = sock.sendto(zlib.compress(message), target_node_address)
 
     def sendcorrect(self, sock, target_node_address, message):
+        ret = sock.sendto(zlib.compress(message), target_node_address)
+
+    def sendoff(self, sock, target_node_address, message):
         ret = sock.sendto(zlib.compress(message), target_node_address)
 
     def sendversion(self, sock, target_node_address, message):
@@ -791,8 +797,10 @@ class NodeManager(object):
                 member_index += 1
 
             if self.replysend['view'] == self.view and int(time.time()) > self.replysend['time'] + 100:
-                self.sendoff(self.view)
-
+                for node in self.committee_member:
+                    msg_obj = packet.Message("sendoff", self.view)
+                    msg_bytes = pickle.dumps(msg_obj)
+                    self.client.sendoff(self.server.socket, (node.ip, node.port), msg_bytes)
 
             time.sleep(1)
             
@@ -1011,8 +1019,7 @@ class NodeManager(object):
         msg_bytes = pickle.dumps(msg_obj)
         self.client.sendblock(self.server.socket, payload["address"], msg_bytes)
 
-    def sendoff(self,payload):
-        pass
+
 
     
     
