@@ -60,6 +60,8 @@ class ProcessMessages(SocketServer.BaseRequestHandler):
             self.handle_found_value(payload)
         elif command == "store":
             self.handle_store(payload)
+        elif command == "sendrequestmessage":
+            self.handle_sendrequestmessage(payload)
         elif command == "sendrequest":
             self.handle_sendrequest(payload)
         elif command == "sendtx":
@@ -228,8 +230,14 @@ class ProcessMessages(SocketServer.BaseRequestHandler):
             self.server.node_manager.successflag = True
             self.server.node_manager.replyMessage = 0
             print "next"
-            self.server.node_manager.sendrequest(payload['blockhash'])
-        
+            self.server.node_manager.sendrequestmessage(payload)
+            self.server.node_manager.is_primary = False
+            # self.server.node_manager.sendrequest(payload['blockhash'])
+
+    def handle_sendrequestmessage(self,payload):
+        self.server.node_manager.is_primary = True
+        self.server.node_manager.sendrequest(payload['blockhash'])
+        print "changed"
 
     def handle_sendrequest(self, payload):
         print "------handle request: the start of prepare------"
@@ -496,6 +504,9 @@ class Node(object):
     def store(self, sock, target_node_address, message):
         sock.sendto(zlib.compress(message), target_node_address)
 
+    def sendrequestmessage(self, sock, target_node_address, message):
+        ret = sock.sendto(zlib.compress(message), target_node_address)
+    
     def sendrequest(self, sock, target_node_address, message):
         ret = sock.sendto(zlib.compress(message), target_node_address)
 
@@ -847,6 +858,14 @@ class NodeManager(object):
         else:
             raise KeyError
 
+    def sendrequestmessage(self,payload):
+        print "change sent"
+        node = self.committee_member[0]
+        msg_obj = packet.Message("sendrequestmessage", payload)
+        msg_bytes = pickle.dumps(msg_obj)
+        self.client.sendrequestmessage(self.server.socket, (node.ip, node.port), msg_bytes)
+    
+    
     def sendrequest(self,payload):
         """
         广播一個request消息
@@ -902,7 +921,6 @@ class NodeManager(object):
             self.startflag = True
             # print "pre-prepared2"
         self.replyflag = False
-        # self.is_primary = False
 
     def sendtx(self, tx):
         """
