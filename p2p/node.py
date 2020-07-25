@@ -214,7 +214,9 @@ class ProcessMessages(SocketServer.BaseRequestHandler):
                     print "-------------------I am correct!!!!!!!!--------------------"
                     self.server.node_manager.finishflag = True
                     if not self.server.node_manager.is_primary:
-                        self.server.node_manager.sendreply(payload)
+                        self.server.node_manager.sendreply(payload['blockhash'])
+                        self.server.node_manager.replysend['view'] = self.server.node_manager.view
+                        self.server.node_manager.replysend['time'] = int(time.time())
                     return
 
     def handle_sendreply(self, payload):
@@ -560,6 +562,9 @@ class NodeManager(object):
         self.successflag = False
         self.receiveblock = True
         self.failhash = []
+        self.replysend = {'view': -1, 'time': -1}
+        self.disconnect = 0
+
         # 每个消息都有一个唯一的rpc_id，用于标识节点之间的通信（该rpc_id由发起方生成，并由接收方返回），
         # 这样可以避免节点收到多个从同一个节点发送的消息时无法区分
         self.rpc_ids = {}  # rpc_ids被多个线程共享，需要加锁
@@ -744,7 +749,7 @@ class NodeManager(object):
             # blockchain多个线程共享使用，需要加锁
             
             if self.view == 0 and self.is_primary:
-                time.sleep(40)
+                time.sleep(80)
                 print "-------START--------"
                 self.sendrequest(0)
                 # first = False
@@ -773,6 +778,10 @@ class NodeManager(object):
                 msg_bytes = pickle.dumps(msg_obj)
                 self.client.sendcorrect(self.server.socket, (node.ip, node.port), msg_bytes)
                 member_index += 1
+
+            if self.replysend['view'] == self.view and int(time.time()) > self.replysend['time'] + 100:
+                self.sendoff(self.view)
+
 
             time.sleep(1)
             
@@ -850,7 +859,7 @@ class NodeManager(object):
                 self.failhash.append(payload)
             else:
                 # print "pre-prepared1"
-                #自身确认入链
+                # 自身确认入链
                 if self.view >= 1:
                     db.write_to_db(self.blockchain.wallet.address, self.blockcache)
                     print "write to db"         
@@ -866,7 +875,7 @@ class NodeManager(object):
             self.successflag = False
             print "view:", self.view
             for node in self.committee_member:    
-                msg_obj = packet.Message("sendrequest", {"hash":payload, "address": (self.client.ip,self.client.port), "GST":self.GST} )
+                msg_obj = packet.Message("sendrequest", {"hash":payload, "address": (self.client.ip,self.client.port), "GST":self.GST, 'id':self.node_id} )
                 msg_bytes = pickle.dumps(msg_obj)
                 self.client.sendrequest(self.server.socket, (node.ip, node.port), msg_bytes)
             # print "++++++++++++++sendrequest&tx++++++++++++++++"
@@ -876,7 +885,7 @@ class NodeManager(object):
         else:
             self.GST += 5
             for node in self.committee_member:    
-                msg_obj = packet.Message("sendrequest", {"hash":payload, "address": (self.client.ip,self.client.port), "GST": self.GST})
+                msg_obj = packet.Message("sendrequest", {"hash":payload, "address": (self.client.ip,self.client.port), "GST": self.GST, 'id':self.node_id})
                 msg_bytes = pickle.dumps(msg_obj)
                 self.client.sendrequest(self.server.socket, (node.ip, node.port), msg_bytes)
             self.commitMessages = []
@@ -893,6 +902,7 @@ class NodeManager(object):
             self.startflag = True
             # print "pre-prepared2"
         self.replyflag = False
+        # self.is_primary = False
 
     def sendtx(self, tx):
         """
@@ -982,6 +992,9 @@ class NodeManager(object):
         msg_obj = packet.Message("sendblock", payload["block"])
         msg_bytes = pickle.dumps(msg_obj)
         self.client.sendblock(self.server.socket, payload["address"], msg_bytes)
+
+    def sendoff(self,payload):
+        pass
 
     
     

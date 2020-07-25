@@ -1,7 +1,12 @@
 *.pyc
+
+# PyInstaller
 *.spec
 build/
+
+.vscode/
+
 test.py
-run1.py
-simulation_test1.py
-p2p/node1.py
+run*.py
+simulation_test*.py
+p2p/node*.py
